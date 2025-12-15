@@ -1,0 +1,15 @@
+services:
+  chirspy_pg_db:
+    image: postgres:15
+    container_name: chirspy_pg_db
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chirspy
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+    driver: local
