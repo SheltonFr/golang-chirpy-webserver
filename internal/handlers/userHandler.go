@@ -2,40 +2,27 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
-	"time"
 
-	"github.com/google/uuid"
+	"github.com/sheltonFr/bootdev/chirspy/internal/auth"
 	"github.com/sheltonFr/bootdev/chirspy/internal/database"
+	"github.com/sheltonFr/bootdev/chirspy/internal/mappers"
 	"github.com/sheltonFr/bootdev/chirspy/internal/utils"
 )
 
 type userHandler struct {
-	db *database.Queries
+	db     *database.Queries
+	logger *log.Logger
 }
 
-type user struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-func mapUser(dbUser *database.User) user {
-	return user{
-		ID:        dbUser.ID,
-		Email:     dbUser.Email,
-		CreatedAt: dbUser.CreatedAt,
-		UpdatedAt: dbUser.UpdatedAt,
-	}
-}
-
-func NewUserHandler(db *database.Queries) *userHandler {
-	return &userHandler{db}
+func NewUserHandler(db *database.Queries, logger *log.Logger) *userHandler {
+	return &userHandler{db, logger}
 }
 
 type createUserDto struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (u *userHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -46,11 +33,25 @@ func (u *userHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := u.db.CreateUser(r.Context(), userDto.Email)
+	passwordHash, err := auth.HashPassword(userDto.Password)
 	if err != nil {
+		u.logger.Printf("Hashing error: %v\n", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "Error hashing password")
+		return
+	}
+
+	userParams := database.CreateUserParams{
+		Email:          userDto.Email,
+		HashedPassword: passwordHash,
+	}
+
+	user, err := u.db.CreateUser(r.Context(), userParams)
+
+	if err != nil {
+		u.logger.Printf("DB error: %v\n", err)
 		utils.RespondWithError(w, http.StatusInternalServerError, "Could not create user")
 		return
 	}
-	utils.RespondWithJSON(w, http.StatusCreated, mapUser(&user))
+	utils.RespondWithJSON(w, http.StatusCreated, mappers.MapUser(&user))
 
 }

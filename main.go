@@ -32,8 +32,9 @@ func main() {
 
 	logger := log.New(os.Stdout, "chirpy-api: ", log.Flags())
 
-	userHandler := handlers.NewUserHandler(dbQueries)
+	userHandler := handlers.NewUserHandler(dbQueries, logger)
 	chirpyHandler := handlers.NewChirpyHandler(dbQueries, logger)
+	authHandler := handlers.NewAuthHandler(dbQueries, logger)
 
 	apiCfg := apiConfig{
 		fileServerHits: atomic.Int32{},
@@ -53,6 +54,9 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", chirpyHandler.CreateChirpy)
 	mux.HandleFunc("GET /api/chirps", chirpyHandler.GetAllChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", chirpyHandler.GetChirpyById)
+
+	//Auth
+	mux.HandleFunc("POST /api/login", authHandler.LoginHandler)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
