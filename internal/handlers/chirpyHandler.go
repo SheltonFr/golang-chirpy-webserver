@@ -12,18 +12,19 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/sheltonFr/bootdev/chirspy/internal/auth"
 	"github.com/sheltonFr/bootdev/chirspy/internal/database"
 	"github.com/sheltonFr/bootdev/chirspy/internal/utils"
 )
 
 type chirpyHandler struct {
-	db     *database.Queries
-	logger *log.Logger
+	db        *database.Queries
+	logger    *log.Logger
+	jwtSecret string
 }
 
 type createChirpyDto struct {
-	Body   string    `json:"body"`
-	UserID uuid.UUID `json:"user_id"`
+	Body string `json:"body"`
 }
 
 type ChirpResponse struct {
@@ -54,13 +55,24 @@ func mapChirps(dbChirp []database.Chirp) []ChirpResponse {
 	return chirps
 }
 
-func NewChirpyHandler(db *database.Queries, logger *log.Logger) *chirpyHandler {
-	return &chirpyHandler{db, logger}
+func NewChirpyHandler(
+	db *database.Queries,
+	logger *log.Logger,
+	jwtSecret string) *chirpyHandler {
+	return &chirpyHandler{db, logger, jwtSecret}
 }
 
 func (c *chirpyHandler) CreateChirpy(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	userID, err := auth.ValidateJWT(token, c.jwtSecret)
+	if err != nil {
+		c.logger.Printf("Unauthorized: %v", err)
+		utils.RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
 	chirpyDto := createChirpyDto{}
-	err := json.NewDecoder(r.Body).Decode(&chirpyDto)
+	err = json.NewDecoder(r.Body).Decode(&chirpyDto)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid JSON")
 		return
@@ -73,7 +85,7 @@ func (c *chirpyHandler) CreateChirpy(w http.ResponseWriter, r *http.Request) {
 
 	cleanedChirp := replaceBadWords(chirpyDto.Body)
 
-	user, err := c.db.GetUserByID(r.Context(), chirpyDto.UserID)
+	user, err := c.db.GetUserByID(r.Context(), userID)
 	if err != nil {
 		c.logger.Printf("User check failed: %v\n", err)
 		utils.RespondWithError(w, http.StatusNotFound, "User not found")

@@ -19,12 +19,14 @@ const port = "8080"
 type apiConfig struct {
 	fileServerHits atomic.Int32
 	db             *database.Queries
+	jwtSecret      string
 }
 
 func main() {
 	godotenv.Load()
 	dbUrl := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbUrl)
+	err = db.Ping()
 	if err != nil {
 		log.Fatal("Could not connect to database", err)
 	}
@@ -32,14 +34,17 @@ func main() {
 
 	logger := log.New(os.Stdout, "chirpy-api: ", log.Flags())
 
-	userHandler := handlers.NewUserHandler(dbQueries, logger)
-	chirpyHandler := handlers.NewChirpyHandler(dbQueries, logger)
-	authHandler := handlers.NewAuthHandler(dbQueries, logger)
+	jwtSecret := os.Getenv("JWT_SECRET")
 
 	apiCfg := apiConfig{
 		fileServerHits: atomic.Int32{},
 		db:             dbQueries,
+		jwtSecret:      jwtSecret,
 	}
+
+	userHandler := handlers.NewUserHandler(dbQueries, logger)
+	chirpyHandler := handlers.NewChirpyHandler(dbQueries, logger, apiCfg.jwtSecret)
+	authHandler := handlers.NewAuthHandler(dbQueries, logger, apiCfg.jwtSecret)
 
 	mux := http.NewServeMux()
 

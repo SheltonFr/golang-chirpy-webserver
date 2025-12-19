@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/sheltonFr/bootdev/chirspy/internal/auth"
 	"github.com/sheltonFr/bootdev/chirspy/internal/database"
@@ -14,17 +15,19 @@ import (
 )
 
 type authHandler struct {
-	db     *database.Queries
-	logger *log.Logger
+	db        *database.Queries
+	logger    *log.Logger
+	jwtSecret string
 }
 
-func NewAuthHandler(db *database.Queries, logger *log.Logger) *authHandler {
-	return &authHandler{db, logger}
+func NewAuthHandler(db *database.Queries, logger *log.Logger, jwtSecret string) *authHandler {
+	return &authHandler{db, logger, jwtSecret}
 }
 
 type LoginDTO struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	ExpiresInSeconds uint   `json:"expires_in_seconds"`
 }
 
 func (a *authHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
@@ -52,5 +55,16 @@ func (a *authHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	utils.RespondWithJSON(w, http.StatusOK, mappers.MapUser(&user))
+
+	expiry := time.Hour
+	if loginDTO.ExpiresInSeconds > 0 {
+		expiry = time.Duration(loginDTO.ExpiresInSeconds) * time.Second
+	}
+	token, err := auth.MakeJWT(user.ID, a.jwtSecret, expiry)
+	if err != nil {
+		a.logger.Fatalf("Jwt error: %v", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "An error occured")
+		return
+	}
+	utils.RespondWithJSON(w, http.StatusOK, mappers.MapUserLogin(&user, token))
 }
