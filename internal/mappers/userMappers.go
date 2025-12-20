@@ -15,13 +15,15 @@ type UserResponse struct {
 }
 
 type UserLoginResponse struct {
-	Token string `json:"token"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 	UserResponse
 }
 
-func MapUserLogin(dbUser *database.User, token string) UserLoginResponse {
+func MapUserLogin(dbUser *database.User, acessToken, refreshToken string) UserLoginResponse {
 	return UserLoginResponse{
-		Token: token,
+		Token:        acessToken,
+		RefreshToken: refreshToken,
 		UserResponse: UserResponse{ID: dbUser.ID,
 			Email:     dbUser.Email,
 			CreatedAt: dbUser.CreatedAt,
